@@ -13,8 +13,8 @@ app.use(function (req, res, next) {
 
 // Middleware to serve static files from 'client' directory
 app.use(function (req, res, next) {
-    const filePath = path.join(__dirname, "client", req.url); // Serving static files from the "client" directory
-    fs.stat(filePath, function (err, fileInfo) {
+    const staticpath = path.join(__dirname, "static", req.url); // Serving static files from the "client" directory
+    fs.stat(staticpath, function (err, fileInfo) {
         if (err) {
             next(); // File not found, proceed to next middleware
             return;

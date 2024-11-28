@@ -13,7 +13,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT,DELETE');
     res.setHeader(
         'Access-Control-Allow-Headers',
-        'Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers'
+        'Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers'
     );
     next();
 });
@@ -39,67 +39,10 @@ MongoClient.connect(mongoUri)
 
 // Home Route
 app.get('/', (req, res) => {
-    res.send('Welcome to the Lessons API! Try /collection/lessons or /collection/orders');
+    res.send('Welcome to the Lessons API! Try /lessons or /orders');
 });
 
-// Dynamic Collection Middleware
-app.param('collectionName', (req, res, next, collectionName) => {
-    req.collection = db.collection(collectionName); // Attach the collection to the request object
-    return next();
-});
-
-// GET all documents from a collection
-app.get('/collection/:collectionName', (req, res, next) => {
-    req.collection.find({}).toArray((err, results) => {
-        if (err) return next(err);
-        res.json(results); // Send all documents in the collection
-    });
-});
-
-// GET a document by ID from a collection
-app.get('/collection/:collectionName/:id', (req, res, next) => {
-    req.collection.findOne({ _id: new ObjectId(req.params.id) }, (err, result) => {
-        if (err) return next(err);
-        if (!result) {
-            res.status(404).send({ error: 'Document not found' });
-        } else {
-            res.json(result); // Send the document
-        }
-    });
-});
-
-// POST to add a new document to a collection
-app.post('/collection/:collectionName', (req, res, next) => {
-    req.collection.insertOne(req.body, (err, result) => {
-        if (err) return next(err);
-        res.status(201).json(result.ops[0]); // Send the inserted document
-    });
-});
-
-// PUT to update a document by ID
-app.put('/collection/:collectionName/:id', (req, res, next) => {
-    req.collection.updateOne(
-        { _id: new ObjectId(req.params.id) }, // Find document by ObjectId
-        { $set: req.body }, // Update fields provided in the request body
-        (err, result) => {
-            if (err) return next(err);
-            res.json(result.matchedCount === 1 ? { msg: 'success' } : { msg: 'error' });
-        }
-    );
-});
-
-// DELETE to remove a document by ID
-app.delete('/collection/:collectionName/:id', (req, res, next) => {
-    req.collection.deleteOne(
-        { _id: new ObjectId(req.params.id) }, // Find document by ObjectId
-        (err, result) => {
-            if (err) return next(err);
-            res.json(result.deletedCount === 1 ? { msg: 'success' } : { msg: 'error' });
-        }
-    );
-});
-
-// Special route to get all lessons (alias for /collection/lessons)
+// Lessons API
 app.get('/lessons', async (req, res) => {
     try {
         const lessons = await db.collection('lessons').find({}).toArray();
@@ -109,7 +52,58 @@ app.get('/lessons', async (req, res) => {
     }
 });
 
-// Special route to create an order
+app.post('/lessons', async (req, res) => {
+    try {
+        const result = await db.collection('lessons').insertOne(req.body);
+        res.status(201).json(result.ops[0]); // Send the created lesson
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create lesson' });
+    }
+});
+
+app.put('/lessons/:id', async (req, res) => {
+    const lessonId = req.params.id;
+
+    if (!ObjectId.isValid(lessonId)) {
+        return res.status(400).json({ error: 'Invalid lesson ID' });
+    }
+
+    try {
+        const result = await db.collection('lessons').updateOne(
+            { _id: new ObjectId(lessonId) },
+            { $set: req.body }
+        );
+        res.json(result.matchedCount === 1 ? { msg: 'Success' } : { msg: 'Lesson not found' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update lesson' });
+    }
+});
+
+app.delete('/lessons/:id', async (req, res) => {
+    const lessonId = req.params.id;
+
+    if (!ObjectId.isValid(lessonId)) {
+        return res.status(400).json({ error: 'Invalid lesson ID' });
+    }
+
+    try {
+        const result = await db.collection('lessons').deleteOne({ _id: new ObjectId(lessonId) });
+        res.json(result.deletedCount === 1 ? { msg: ' Success' } : { msg: 'Lesson not found' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete lesson' });
+    }
+});
+
+// Orders API
+app.get('/orders', async (req, res) => {
+    try {
+        const orders = await db.collection('orders').find({}).toArray();
+        res.json(orders); // Send orders as JSON
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+});
+
 app.post('/orders', async (req, res) => {
     try {
         const result = await db.collection('orders').insertOne(req.body);
@@ -119,8 +113,43 @@ app.post('/orders', async (req, res) => {
     }
 });
 
+app.put('/orders/:id', async (req, res) => {
+    const orderId = req.params.id;
+
+    if (!ObjectId.isValid(orderId)) {
+        return res.status(400).json({ error: 'Invalid order ID' });
+    }
+
+    try {
+        const result = await db.collection('orders').updateOne(
+            { _id: new ObjectId(orderId) },
+            { $set: req.body }
+        );
+        res.json(result.matchedCount === 1 ? { msg: 'Success' } : { msg: 'Order not found' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update order' });
+    }
+});
+
+app.delete('/orders/:id', async (req, res) => {
+    const orderId = req.params.id;
+
+    if (!ObjectId.isValid(orderId)) {
+        return res.status(400).json({ error: 'Invalid order ID' });
+    }
+
+    try {
+        const result = await db.collection('orders').deleteOne({ _id: new ObjectId(orderId) });
+        res.json(result.deletedCount === 1 ? { msg: 'Success' } : { msg: 'Order not found' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete order' });
+    }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err);
     res.status(500).json({ error: 'An error occurred, please try again later.' });
 });
+
+module.exports = app; // Export the app for testing or further use
