@@ -3,35 +3,34 @@ const { MongoClient, ObjectId } = require('mongodb'); // Import MongoClient and 
 require('dotenv').config();
 
 const app = express(); // Initialize Express app
-
+const PORT = process.env.PORT || 3001; // Define backend port
 app.use(express.json()); // Middleware to parse incoming JSON requests
-app.set('port', process.env.PORT || 3000); // Set the port to environment variable or 3000
 
 // Enable CORS (Cross-Origin Resource Sharing)
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,DELETE");
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT,DELETE');
     res.setHeader(
-        "Access-Control-Allow-Headers",
-        "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers"
+        'Access-Control-Allow-Headers',
+        'Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers'
     );
     next();
 });
 
-// MongoDB Connection URI (using environment variable for security)
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+// MongoDB Connection URI
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'; // Fallback to local MongoDB if no URI in environment
 let db;
 
 // Connect to MongoDB
-MongoClient.connect('mongodb+srv://Admin:admin@gettingstarted.quhps.mongodb.net/', { useNewUrlParser: true, useUnifiedTopology: true })
+MongoClient.connect(mongoUri)
     .then(client => {
-        db = client.db('Lessons'); // Use the 'Lessosns' database
+        db = client.db('Lessons'); // Connect to the 'Lessons' database
         console.log('Connected to MongoDB');
 
         // Start the server once MongoDB is connected
-        app.listen(app.get('port'), () => {
-            console.log(`Express.js server running at http://localhost:${app.get('port')}`);
+        app.listen(PORT, () => {
+            console.log(`Backend server is running at http://localhost:${PORT}`);
         });
     })
     .catch(err => {
@@ -40,10 +39,10 @@ MongoClient.connect('mongodb+srv://Admin:admin@gettingstarted.quhps.mongodb.net/
 
 // Home Route
 app.get('/', (req, res) => {
-    res.send('select a collection, e.g., /collection/messages');
+    res.send('Welcome to the Lessons API! Try /collection/lessons or /collection/orders');
 });
 
-// Middleware for dynamic collection binding
+// Dynamic Collection Middleware
 app.param('collectionName', (req, res, next, collectionName) => {
     req.collection = db.collection(collectionName); // Attach the collection to the request object
     return next();
@@ -53,7 +52,19 @@ app.param('collectionName', (req, res, next, collectionName) => {
 app.get('/collection/:collectionName', (req, res, next) => {
     req.collection.find({}).toArray((err, results) => {
         if (err) return next(err);
-        res.send(results); // Send all documents in the collection
+        res.json(results); // Send all documents in the collection
+    });
+});
+
+// GET a document by ID from a collection
+app.get('/collection/:collectionName/:id', (req, res, next) => {
+    req.collection.findOne({ _id: new ObjectId(req.params.id) }, (err, result) => {
+        if (err) return next(err);
+        if (!result) {
+            res.status(404).send({ error: 'Document not found' });
+        } else {
+            res.json(result); // Send the document
+        }
     });
 });
 
@@ -61,7 +72,7 @@ app.get('/collection/:collectionName', (req, res, next) => {
 app.post('/collection/:collectionName', (req, res, next) => {
     req.collection.insertOne(req.body, (err, result) => {
         if (err) return next(err);
-        res.send(result.ops[0]); // Send the inserted document back
+        res.status(201).json(result.ops[0]); // Send the inserted document
     });
 });
 
@@ -72,7 +83,7 @@ app.put('/collection/:collectionName/:id', (req, res, next) => {
         { $set: req.body }, // Update fields provided in the request body
         (err, result) => {
             if (err) return next(err);
-            res.send(result.matchedCount === 1 ? { msg: 'success' } : { msg: 'error' });
+            res.json(result.matchedCount === 1 ? { msg: 'success' } : { msg: 'error' });
         }
     );
 });
@@ -83,13 +94,33 @@ app.delete('/collection/:collectionName/:id', (req, res, next) => {
         { _id: new ObjectId(req.params.id) }, // Find document by ObjectId
         (err, result) => {
             if (err) return next(err);
-            res.send(result.deletedCount === 1 ? { msg: 'success' } : { msg: 'error' });
+            res.json(result.deletedCount === 1 ? { msg: 'success' } : { msg: 'error' });
         }
     );
+});
+
+// Special route to get all lessons (alias for /collection/lessons)
+app.get('/lessons', async (req, res) => {
+    try {
+        const lessons = await db.collection('lessons').find({}).toArray();
+        res.json(lessons); // Send lessons as JSON
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch lessons' });
+    }
+});
+
+// Special route to create an order
+app.post('/orders', async (req, res) => {
+    try {
+        const result = await db.collection('orders').insertOne(req.body);
+        res.status(201).json(result.ops[0]); // Send the created order
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create order' });
+    }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err);
-    res.status(500).send({ error: 'An error occurred, please try again later.' });
+    res.status(500).json({ error: 'An error occurred, please try again later.' });
 });
