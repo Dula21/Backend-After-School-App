@@ -1,40 +1,43 @@
 const express = require("express");
-const path = require("path");
-const fs = require("fs");
 
-const app = express();
+// List of allowed IPs (add your specific IPs here)
+const ALLOWED_IPS = [
+    "123.001.1",
+    "123.456.7.89",
+];
 
-// Middleware to log request details (IP, date)
-app.use(function (req, res, next) {
-    console.log("Request URL: " + req.url);
-    console.log("Request date: " + new Date());
-    next();
+const api = express.Router();
+
+// Middleware to restrict access based on allowed IPs
+api.use((req, res, next) => {
+    const userIsAllowed = ALLOWED_IPS.indexOf(req.ip) !== -1;
+    if (!userIsAllowed) {
+        res.status(403).send("You are not allowed to access this resource");
+    } else {
+        next();
+    }
 });
 
-// Middleware to serve static files from 'client' directory
-app.use(function (req, res, next) {
-    const staticpath = path.join(__dirname, "static", req.url); // Serving static files from the "client" directory
-    fs.stat(staticpath, function (err, fileInfo) {
-        if (err) {
-            next(); // File not found, proceed to next middleware
-            return;
-        }
-        if (fileInfo.isFile()) {
-            res.sendFile(filePath); // Send the file if it exists
-        } else {
-            next(); // Proceed if not a file (e.g., a folder or invalid file)
-        }
-    });
+// Placeholder endpoint (can be modified later)
+api.get("/welcome", (req, res) => {
+    res.send("Welcome to the application's API!");
 });
 
-// Default route for the application (optional)
-app.get('/', (req, res) => {
-    res.send('Select a collection, e.g., /collection/messages');
+// Lessons API routes (no handling here, logic in server.js)
+api.get("/lessons", (req, res) => {
+    res.send("Fetching lessons... (Handled in server.js)");
+});
+api.post("/lessons", (req, res) => {
+    res.send("Creating a lesson... (Handled in server.js)");
 });
 
-// 404 error handling for non-existent routes
-app.use(function (req, res) {
-    res.status(404).send("File not found!");
+// Orders API routes
+api.get("/orders", (req, res) => {
+    res.send("Fetching orders... (Handled in server.js)");
+});
+api.post("/orders", (req, res) => {
+    res.send("Creating an order... (Handled in server.js)");
 });
 
-module.exports = app; // Export the app for use in server.js
+// Export the API router
+module.exports = api;

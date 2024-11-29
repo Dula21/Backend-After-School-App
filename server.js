@@ -1,155 +1,82 @@
-const express = require('express');
-const { MongoClient, ObjectId } = require('mongodb'); // Import MongoClient and ObjectId
-require('dotenv').config();
+const express = require("express");
+const { MongoClient, ObjectID } = require("mongodb"); // Include MongoClient and ObjectID
 
-const app = express(); // Initialize Express app
-const PORT = process.env.PORT || 3001; // Define backend port
-app.use(express.json()); // Middleware to parse incoming JSON requests
+const app = express();
 
-// Enable CORS (Cross-Origin Resource Sharing)
+// Middleware to parse JSON requests
+app.use(express.json());
+
+// CORS Headers to allow cross-origin requests
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT,DELETE');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers'
-    );
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers");
     next();
 });
 
-// MongoDB Connection URI
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017'; // Fallback to local MongoDB if no URI in environment
+// MongoDB connection
+const dbUrl = "mongodb+srv://Admin:admin@gettingstarted.quhps.mongodb.net/";
 let db;
 
-// Connect to MongoDB
-MongoClient.connect(mongoUri)
-    .then(client => {
-        db = client.db('Lessons'); // Connect to the 'Lessons' database
-        console.log('Connected to MongoDB');
+MongoClient.connect(dbUrl, { useNewUrlParser: true, useUnifiedTopology: true }, (err, client) => {
+    if (err) {
+        console.error("Failed to connect to MongoDB:", err);
+        process.exit(1);
+    }
+    db = client.db("Lessons");
+    console.log("Connected to MongoDB successfully!");
+});
 
-        // Start the server once MongoDB is connected
-        app.listen(PORT, () => {
-            console.log(`Backend server is running at http://localhost:${PORT}`);
-        });
-    })
-    .catch(err => {
-        console.error('Failed to connect to MongoDB:', err);
+// Welcome route
+app.get("/", (req, res) => {
+    res.send("Welcome to the API! Use endpoints like /collection/lessons to interact.");
+});
+
+// Collection parameter middleware
+app.param("collectionName", (req, res, next, collectionName) => {
+    req.collection = db.collection(collectionName);
+    return next();
+});
+
+// Get all documents from a collection
+app.get("/collection/:collectionName", (req, res, next) => {
+    req.collection.find({}).toArray((err, results) => {
+        if (err) return next(err);
+        res.send(results);
     });
-
-// Home Route
-app.get('/', (req, res) => {
-    res.send('Welcome to the Lessons API! Try /lessons or /orders');
 });
 
-// Lessons API
-app.get('/lessons', async (req, res) => {
-    try {
-        const lessons = await db.collection('lessons').find({}).toArray();
-        res.json(lessons); // Send lessons as JSON
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch lessons' });
-    }
+// Add a document to a collection
+app.post("/collection/:collectionName", (req, res, next) => {
+    req.collection.insertOne(req.body, (err, result) => {
+        if (err) return next(err);
+        res.send(result.ops[0]); // Send the inserted document
+    });
 });
 
-app.post('/lessons', async (req, res) => {
-    try {
-        const result = await db.collection('lessons').insertOne(req.body);
-        res.status(201).json(result.ops[0]); // Send the created lesson
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to create lesson' });
-    }
+// Update a document in a collection
+app.put("/collection/:collectionName/:id", (req, res, next) => {
+    req.collection.updateOne(
+        { _id: new ObjectID(req.params.id) },
+        { $set: req.body },
+        (err, result) => {
+            if (err) return next(err);
+            res.send(result.matchedCount === 1 ? { msg: "success" } : { msg: "error" });
+        }
+    );
 });
 
-app.put('/lessons/:id', async (req, res) => {
-    const lessonId = req.params.id;
-
-    if (!ObjectId.isValid(lessonId)) {
-        return res.status(400).json({ error: 'Invalid lesson ID' });
-    }
-
-    try {
-        const result = await db.collection('lessons').updateOne(
-            { _id: new ObjectId(lessonId) },
-            { $set: req.body }
-        );
-        res.json(result.matchedCount === 1 ? { msg: 'Success' } : { msg: 'Lesson not found' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update lesson' });
-    }
+// Delete a document from a collection
+app.delete("/collection/:collectionName/:id", (req, res, next) => {
+    req.collection.deleteOne({ _id: new ObjectID(req.params.id) }, (err, result) => {
+        if (err) return next(err);
+        res.send(result.deletedCount === 1 ? { msg: "success" } : { msg: "error" });
+    });
 });
 
-app.delete('/lessons/:id', async (req, res) => {
-    const lessonId = req.params.id;
-
-    if (!ObjectId.isValid(lessonId)) {
-        return res.status(400).json({ error: 'Invalid lesson ID' });
-    }
-
-    try {
-        const result = await db.collection('lessons').deleteOne({ _id: new ObjectId(lessonId) });
-        res.json(result.deletedCount === 1 ? { msg: ' Success' } : { msg: 'Lesson not found' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to delete lesson' });
-    }
+// Listen on the specified port
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`Express.js server running at http://localhost:${port}`);
 });
-
-// Orders API
-app.get('/orders', async (req, res) => {
-    try {
-        const orders = await db.collection('orders').find({}).toArray();
-        res.json(orders); // Send orders as JSON
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch orders' });
-    }
-});
-
-app.post('/orders', async (req, res) => {
-    try {
-        const result = await db.collection('orders').insertOne(req.body);
-        res.status(201).json(result.ops[0]); // Send the created order
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to create order' });
-    }
-});
-
-app.put('/orders/:id', async (req, res) => {
-    const orderId = req.params.id;
-
-    if (!ObjectId.isValid(orderId)) {
-        return res.status(400).json({ error: 'Invalid order ID' });
-    }
-
-    try {
-        const result = await db.collection('orders').updateOne(
-            { _id: new ObjectId(orderId) },
-            { $set: req.body }
-        );
-        res.json(result.matchedCount === 1 ? { msg: 'Success' } : { msg: 'Order not found' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update order' });
-    }
-});
-
-app.delete('/orders/:id', async (req, res) => {
-    const orderId = req.params.id;
-
-    if (!ObjectId.isValid(orderId)) {
-        return res.status(400).json({ error: 'Invalid order ID' });
-    }
-
-    try {
-        const result = await db.collection('orders').deleteOne({ _id: new ObjectId(orderId) });
-        res.json(result.deletedCount === 1 ? { msg: 'Success' } : { msg: 'Order not found' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to delete order' });
-    }
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error(err);
-    res.status(500).json({ error: 'An error occurred, please try again later.' });
-});
-
-module.exports = app; // Export the app for testing or further use

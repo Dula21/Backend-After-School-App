@@ -2,6 +2,7 @@ const express = require('express');
 const { ObjectID } = require('mongodb');
 const router = express.Router();
 
+
 // MongoDB collection setup
 const db = require('./server').db; // Access the db from server.js
 
@@ -88,7 +89,7 @@ router.put('/orders/:id', (req, res, next) => {
   });
 });
 
-router.delete('/ orders/:id', (req, res, next) => {
+router.delete('/orders/:id', (req, res, next) => {
   const orderId = req.params.id;
 
   if (!ObjectID.isValid(orderId)) {
